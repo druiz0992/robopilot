@@ -1,0 +1,36 @@
+.joystick {
+    position: relative;
+    width: 150px; /* Adjust as needed */
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .stick {
+    position: absolute;
+    width: 60px; /* Adjust based on joystick size */
+    height: 60px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+ 
+  /* styles/common.css */
+.container {
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .joystickContainer {
+    display: flex;
+    justify-content: center;
+    gap: 20px; /* Space between joysticks */
+    margin-top: 20px;
+  }
+  
+  .status {
+    font-size: 16px;
+    margin-top: 10px;
+    color: #333;
+  }

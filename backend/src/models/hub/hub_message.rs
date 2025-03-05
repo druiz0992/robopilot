@@ -1,4 +1,5 @@
 use imu_common::types::Clock;
+use imu_common::types::Sample3D;
 use serde::{Deserialize, Serialize};
 
 use super::{HubChannelName, HubData};
@@ -23,7 +24,7 @@ impl HubMessage {
         let channel = HubChannelName::try_from(channel)?;
         Ok(Self {
             channel,
-            data: HubData::from_str(data),
+            data: data.parse::<HubData>().unwrap(),
             timestamp: Clock::now().as_secs(),
         })
     }
@@ -79,7 +80,7 @@ mod tests {
     #[test]
     fn test_hub_data_from_str() {
         let data = "  some data \n";
-        let hub_data = HubData::from_str(data);
+        let hub_data = data.parse::<HubData>().unwrap();
         assert_eq!(hub_data.as_str(), "some data");
     }
 
@@ -115,14 +116,14 @@ mod tests {
     fn test_hub_channel_name_to_string() {
         let valid_name = "valid_channel_name";
         let channel_name = HubChannelName::try_from(valid_name).unwrap();
-        assert_eq!(channel_name.to_string(), valid_name);
+        assert_eq!(channel_name.as_str(), valid_name);
     }
 
     #[test]
     fn test_hub_data_to_string() {
         let data = "some data";
-        let hub_data = HubData::from_str(data);
-        assert_eq!(hub_data.to_string(), data);
+        let hub_data = data.parse::<HubData>().unwrap();
+        assert_eq!(hub_data.as_str(), data);
     }
 
     #[test]

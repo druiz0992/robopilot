@@ -16,10 +16,6 @@ impl HubChannelName {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-
-    pub fn to_string(&self) -> String {
-        self.0.clone()
-    }
 }
 
 impl TryFrom<String> for HubChannelName {
@@ -47,7 +43,7 @@ impl TryFrom<&str> for HubChannelName {
         // Ensure only alphanumeric characters and '_' exist, and no spaces in the middle
         if trimmed
             .chars()
-            .any(|c| !(c.is_alphanumeric() || c == '_') && !c.is_whitespace())
+            .any(|c| !(c.is_alphanumeric() || c == '_' || c.is_whitespace()))
         {
             return Err(
                 "Invalid channel name: Only alphanumeric characters and '_' are allowed."
@@ -136,7 +132,7 @@ mod tests {
     fn test_channel_name_to_string() {
         let valid_name = "valid_channel_123";
         let hub_channel_name = HubChannelName::try_from(valid_name).unwrap();
-        assert_eq!(hub_channel_name.to_string(), valid_name.to_string());
+        assert_eq!(hub_channel_name.as_str(), valid_name.to_string());
     }
 
     #[test]
@@ -144,6 +140,6 @@ mod tests {
         let valid_name = "valid_channel_123".to_string();
         let hub_channel_name = HubChannelName::try_from(valid_name.clone());
         assert!(hub_channel_name.is_ok());
-        assert_eq!(hub_channel_name.unwrap().to_string(), valid_name);
+        assert_eq!(hub_channel_name.unwrap().as_str(), valid_name);
     }
 }

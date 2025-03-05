@@ -11,9 +11,6 @@ impl SerialData {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-    pub fn to_string(&self) -> String {
-        self.0.clone()
-    }
     pub fn from_str(data: &str) -> Self {
         SerialData(data.to_string())
     }
@@ -27,12 +24,9 @@ impl SerialRawMessage {
         Self(data.to_string())
     }
 
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
-    }
-
-    pub fn as_string(&self) -> String {
-        self.0.clone()
     }
 }
 
@@ -44,7 +38,7 @@ impl SerialRawMessage {
                 let raw_channel_name = &raw_data[start + 2..start + 2 + end];
                 let data = raw_data[start + 2 + end + 2..]
                     .trim_matches(|c| c == '\n' || c == '\r' || c == ' ');
-                if let Some(channel_name) = SerialChannelName::try_from(raw_channel_name).ok() {
+                if let Ok(channel_name) = SerialChannelName::try_from(raw_channel_name) {
                     return Some((channel_name, SerialData(data.to_string())));
                 }
             }
@@ -78,7 +72,7 @@ impl TryFrom<SerialRawMessage> for HubMessage {
 
 impl From<SerialData> for HubData {
     fn from(value: SerialData) -> Self {
-        HubData::from_str(value.as_str())
+        value.as_str().parse::<HubData>().unwrap()
     }
 }
 
@@ -159,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_hub_data_to_serial_data() {
-        let hub_data = HubData::from_str("data");
+        let hub_data = "data".parse::<HubData>().unwrap();
         let serial_data: SerialData = hub_data.into();
         assert_eq!(serial_data.as_str(), "data");
     }

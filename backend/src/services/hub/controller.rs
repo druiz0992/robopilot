@@ -67,6 +67,10 @@ impl HubManager {
         }
     }
 
+    pub fn get_sender(&self) -> broadcast::Sender<HubMessage> {
+        self.hub_sender.clone()
+    }
+
     pub fn add(&mut self, hub_node: Box<dyn NotificationHub>) {
         self.hub_nodes.push(hub_node);
     }

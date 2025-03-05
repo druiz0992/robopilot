@@ -14,7 +14,11 @@ pub trait NotificationHub: Send + Sync + std::fmt::Debug {
     /// Lists all available channels in the notification hub.
     async fn list_channels(&self) -> Result<Vec<HubChannelName>, std::io::Error>;
     /// Subscribes to a specific channel in the notification hub.
-    async fn subscribe(&self, channel: HubChannelName) -> Result<(), std::io::Error>;
+    async fn subscribe(&self, channel: HubChannelName) -> Result<(), std::io::Error> {
+        Ok(())
+    }
     /// Unsubscribes from a specific channel in the notification hub.
-    async fn unsubscribe(&self, channel: HubChannelName) -> Result<(), std::io::Error>;
+    async fn unsubscribe(&self, channel: HubChannelName) -> Result<(), std::io::Error> {
+        Ok(())
+    }
 }

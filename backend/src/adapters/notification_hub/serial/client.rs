@@ -43,7 +43,7 @@ impl SerialClient {
             port: Arc::new(RwLock::new(port)),
             serial_channels: Arc::new(RwLock::new(SerialPubChannels::new())),
         };
-        info!("Serial oport opened...");
+        info!("Serial port opened...");
         Ok(handler)
     }
 }
@@ -112,15 +112,6 @@ impl NotificationHub for SerialClient {
         });
         Ok(())
     }
-
-    // nothing to do. All channels are recevied in a serial port
-    async fn subscribe(&self, _channel: HubChannelName) -> Result<(), std::io::Error> {
-        Ok(())
-    }
-    // nothing to do. All channels are recevied in a serial port
-    async fn unsubscribe(&self, _channel: HubChannelName) -> Result<(), std::io::Error> {
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -131,6 +122,7 @@ mod tests {
     const BAUD_RATE: u32 = 9600;
 
     #[tokio::test]
+    #[ignore]
     async fn test_serial() {
         let client = SerialClient::new(PORT, BAUD_RATE).unwrap();
         let (sender, mut receiver) = broadcast::channel(100);

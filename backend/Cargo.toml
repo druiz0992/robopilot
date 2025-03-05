@@ -19,4 +19,4 @@ futures-util = "0.3.31"
 futures-channel = "0.3.31"
 
 uuid = { version = "1", features = ["v4"] }
-imu_common = { git = "https://github.com/druiz0992/imu-rs.git", branch = "main" }
+imu_common = { git = "https://github.com/druiz0992/imu-rs.git", branch = "main", features = ["serde-serialize"] }

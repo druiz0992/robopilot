@@ -5,9 +5,9 @@ use futures_util::{
 use log::{error, info, warn};
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, Mutex};
 use tokio_tungstenite::tungstenite::protocol::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::adapters::websocket::WsMessage;
 use crate::models::hub::{HubChannelName, HubMessage};
@@ -21,13 +21,6 @@ pub(crate) async fn handle_incoming_data(
     info!("Sending Data message {:?}", incoming_data);
     let sender_lock = sender.lock().await;
     let _ = sender_lock.send(incoming_data);
-}
-pub(crate) async fn handle_channel_message(
-    sender: mpsc::Sender<Vec<HubChannelName>>,
-    channels: Vec<HubChannelName>,
-) {
-    info!("List Channel Response: {:?}", channels);
-    let _ = sender.send(channels);
 }
 
 pub(crate) async fn handle_send_ws_message(

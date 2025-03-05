@@ -12,6 +12,7 @@ pub(crate) enum WsMessage {
 }
 
 impl WsMessage {
+    #[allow(dead_code)]
     pub fn subscribe(channel: &str) -> Result<Self, String> {
         let channel_name = HubChannelName::try_from(channel)?;
         Ok(WsMessage::Subscribe(channel_name))
@@ -21,6 +22,7 @@ impl WsMessage {
         WsMessage::Subscribe(channel)
     }
 
+    #[allow(dead_code)]
     pub fn unsubscribe(channel: &str) -> Result<Self, String> {
         let channel_name = HubChannelName::try_from(channel)?;
         Ok(WsMessage::Unsubscribe(channel_name))
@@ -34,12 +36,14 @@ impl WsMessage {
         WsMessage::ListChannelsReq
     }
 
+    #[allow(dead_code)]
     pub fn send_data(channel: &str, data: &str) -> Result<Self, String> {
         let channel_name = HubChannelName::try_from(channel)?;
-        let data = HubData::from_str(data);
+        let data = data.parse::<HubData>().unwrap();
         Ok(WsMessage::Data(channel_name, data))
     }
 
+    #[allow(dead_code)]
     pub fn send_data_channel(channel: HubChannelName, data: HubData) -> Self {
         WsMessage::Data(channel, data)
     }
@@ -83,7 +87,7 @@ mod tests {
         let result = WsMessage::subscribe(channel);
         assert!(result.is_ok());
         if let Ok(WsMessage::Subscribe(channel_name)) = result {
-            assert_eq!(channel_name.to_string(), channel);
+            assert_eq!(channel_name.as_str(), channel);
         } else {
             panic!("Expected WsMessage::Subscribe");
         }
@@ -106,7 +110,7 @@ mod tests {
         let result = WsMessage::unsubscribe(channel);
         assert!(result.is_ok());
         if let Ok(WsMessage::Unsubscribe(channel_name)) = result {
-            assert_eq!(channel_name.to_string(), channel);
+            assert_eq!(channel_name.as_str(), channel);
         } else {
             panic!("Expected WsMessage::Unsubscribe");
         }
@@ -139,8 +143,8 @@ mod tests {
         let data = "test_data";
         let result = WsMessage::send_data(channel, data);
         assert!(result.is_ok());
-        if let Ok(WsMessage::Data(channel_name, data)) = result {
-            assert_eq!(channel_name.to_string(), channel);
+        if let Ok(WsMessage::Data(channel_name, _)) = result {
+            assert_eq!(channel_name.as_str(), channel);
         } else {
             panic!("Expected WsMessage::Data");
         }
@@ -149,9 +153,9 @@ mod tests {
     #[test]
     fn test_send_data_channel() {
         let channel_name = HubChannelName::try_from("test_channel").unwrap();
-        let data = HubData::from_str("test_data");
+        let data = "test_data".parse::<HubData>().unwrap();
         let message = WsMessage::send_data_channel(channel_name.clone(), data.clone());
-        if let WsMessage::Data(ch, d) = message {
+        if let WsMessage::Data(ch, _) = message {
             assert_eq!(ch, channel_name);
         } else {
             panic!("Expected WsMessage::Data");

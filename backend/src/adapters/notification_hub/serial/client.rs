@@ -3,7 +3,7 @@ use log::{error, info, warn};
 use serialport::SerialPort;
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tokio_serial::{DataBits, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
 use super::channels::{SerialChannelName, SerialPubChannels};
@@ -12,7 +12,6 @@ use crate::models::hub::{HubChannelName, HubMessage};
 use crate::ports::NotificationHub;
 
 const BUFFER_SIZE: usize = 1024;
-const CHANNEL_CAPACITY: usize = 100;
 
 /// The `SerialClient` struct represents a client that communicates with a serial port that can subscribe
 /// to specific topic channels. It allows to send and receive messages on specific topics.
@@ -34,9 +33,8 @@ impl SerialClient {
         info!("Opening serial port {} with params {}...", port, baud_rate);
         let mut port = tokio_serial::new(port, baud_rate)
             .open_native_async()
-            .map_err(|e| {
+            .inspect_err(|_| {
                 error!("Serial port at {} not ready", port);
-                e
             })?;
         port.set_parity(Parity::None)?;
         port.set_stop_bits(StopBits::One)?;
@@ -62,10 +60,7 @@ impl NotificationHub for SerialClient {
     /// List available topic channels
     async fn list_channels(&self) -> Result<Vec<HubChannelName>, std::io::Error> {
         let serial_channels = self.serial_channels.read().await;
-        Ok(serial_channels
-            .into_iter()
-            .map(|c| HubChannelName::from(c))
-            .collect())
+        Ok(serial_channels.iter().map(HubChannelName::from).collect())
     }
 
     /// Start client
@@ -131,7 +126,6 @@ impl NotificationHub for SerialClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::mpsc;
 
     const PORT: &str = "/dev/ttyACM0";
     const BAUD_RATE: u32 = 9600;
@@ -140,7 +134,7 @@ mod tests {
     async fn test_serial() {
         let client = SerialClient::new(PORT, BAUD_RATE).unwrap();
         let (sender, mut receiver) = broadcast::channel(100);
-        client.start(sender).await;
+        client.start(sender).await.unwrap();
 
         let message = HubMessage::try_from_str("test_channel", "test_data").unwrap();
         let result = client.send(message).await;

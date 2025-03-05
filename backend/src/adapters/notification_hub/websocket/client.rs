@@ -6,7 +6,7 @@ use futures_util::{
 use log::{error, info, warn};
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{broadcast, mpsc, Mutex, OnceCell};
+use tokio::sync::{broadcast, Mutex};
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
@@ -17,25 +17,24 @@ use super::handlers;
 use super::message::WsMessage;
 use super::server::WebSocketServer;
 
-const CHANNEL_CAPACITY: usize = 1;
+type WsWrite = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
+type WsRead = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
 
 /// `WebSocketClient` manages a bidirectional WebSocket connection.
 /// It reads messages from the WebSocket and broadcasts them to subscribers.
-
 #[derive(Debug, Clone)]
 pub struct WebSocketClient {
     client_url: String,
-    sender: mpsc::Sender<Vec<HubChannelName>>,
-    ws_write: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
-    ws_read: Arc<Mutex<SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>>>,
+    ws_write: Arc<Mutex<WsWrite>>,
+    ws_read: Arc<Mutex<WsRead>>,
 }
 
 impl WebSocketClient {
     // Constructor to initialize WebSocketClient with a URL and broadcast channels
     pub async fn new(url: &str) -> Result<Self, std::io::Error> {
-        let (sender, _) = mpsc::channel(CHANNEL_CAPACITY);
         let client_url = format!("ws://{}", url);
 
+        // Launch server will fail it its already launched. Not very nice
         let _ = launch_server(url).await;
 
         match connect_async(client_url.as_str()).await {
@@ -44,7 +43,6 @@ impl WebSocketClient {
                 info!("Connected to WebSocket server at {}", client_url);
                 Ok(Self {
                     client_url,
-                    sender,
                     ws_write: Arc::new(Mutex::new(write)),
                     ws_read: Arc::new(Mutex::new(read)),
                 })
@@ -84,23 +82,15 @@ impl NotificationHub for WebSocketClient {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         let (mut ws_write, mut ws_read) = ws_stream.split();
 
-        return handlers::handle_send_ws_message_with_response(
-            &mut ws_write,
-            &mut ws_read,
-            ws_message,
-        )
-        .await
-        .map_err(|e| e) // Passes the error as-is
-        .and_then(|channels| Ok(channels));
+        handlers::handle_send_ws_message_with_response(&mut ws_write, &mut ws_read, ws_message)
+            .await
     }
 
     // Connect to the WebSocket server, receive messages, and handle them
     async fn start(&self, sender: broadcast::Sender<HubMessage>) -> Result<(), std::io::Error> {
         let sender = Arc::new(Mutex::new(sender));
         let sender_clone = sender.clone();
-        let controller_sender = self.sender.clone();
         tokio::spawn({
-            let controller_sender = controller_sender.clone();
             let ws_read = Arc::clone(&self.ws_read);
             async move {
                 let mut stream = ws_read.lock().await;
@@ -111,13 +101,6 @@ impl NotificationHub for WebSocketClient {
                             info!("Received message from server: {}", text);
                             match WsMessage::try_from(text) {
                                 Ok(ws_message) => match ws_message {
-                                    WsMessage::ListChannelsResponse(channels) => {
-                                        handlers::handle_channel_message(
-                                            controller_sender.clone(),
-                                            channels,
-                                        )
-                                        .await;
-                                    }
                                     WsMessage::Data(channel, data) => {
                                         let hub_message = HubMessage::new(channel, data);
                                         handlers::handle_incoming_data(

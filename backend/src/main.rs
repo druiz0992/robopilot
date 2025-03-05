@@ -10,14 +10,15 @@ mod services;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
+    let mut hub = HubManager::new();
     if let Ok(serial_client) = SerialClient::new("/dev/ttyACM0", 9600) {
-        let hub_serial = HubManager::new(serial_client);
-        hub_serial.start().await?;
+        hub.add(Box::new(serial_client));
     }
     if let Ok(ws_client) = WebSocketClient::new("localhost:8080").await {
-        let hub_ws = HubManager::new(ws_client);
-        hub_ws.start().await?;
+        hub.add(Box::new(ws_client));
     }
+
+    hub.start().await?;
 
     Ok(())
 }

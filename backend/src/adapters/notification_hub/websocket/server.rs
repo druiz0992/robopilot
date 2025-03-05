@@ -103,13 +103,12 @@ async fn handle_ws_subscribe(
         "Subscription request to channel {:?} from {:?}",
         channel_name, addr
     );
-    let mut channels = channel_map.lock().await;
-    channels
-        .entry(channel_name.clone())
-        .or_default()
-        .insert(addr, tx.clone());
 
-    info!("Client {} subscribed to {:?}", addr, channel_name);
+    let mut channels = channel_map.lock().await;
+    if let Some(channel) = channels.get_mut(channel_name) {
+        channel.insert(addr, tx.clone());
+        info!("Client {} subscribed to {:?}", addr, channel_name);
+    }
 }
 
 /// WsMessage::Unsubscribe handler. Deregisters new subscriber from channel

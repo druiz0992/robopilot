@@ -1,4 +1,5 @@
 use log::{error, info};
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use uuid::Uuid;
@@ -27,6 +28,9 @@ impl HubReceiver {
     }
 }
 
+const SERIAL_IDX: usize = 0;
+const WS_IDX: usize = 1;
+
 /// `HubManager` controls communications through a NotificationHub network by
 /// maintaining the set of topic channels in the hub, the set of subscribers
 /// to specific topic channels, and ensuring that subscribers receive
@@ -42,26 +46,29 @@ impl HubReceiver {
 /// from A to B in an autonomous robot would subscribe to certain channels containing
 ///  relevant sensor information (position, camera, odometry...). Once subscribed,
 /// sensor data is available through the receiver channel in the form of `HubMessages`
-
 #[derive(Debug)]
-pub struct HubManager<H: NotificationHub> {
+pub struct HubManager {
     channels: Arc<Mutex<HubChannels>>,
     subscribers: HubUsers,
     hub_sender: broadcast::Sender<HubMessage>,
     hub_receiver: Arc<Mutex<broadcast::Receiver<HubMessage>>>,
-    hub_node: H,
+    hub_nodes: Vec<Box<dyn NotificationHub>>,
 }
 
-impl<H: NotificationHub> HubManager<H> {
-    pub fn new(hub_node: H) -> Self {
+impl HubManager {
+    pub fn new() -> Self {
         let (hub_sender, hub_receiver) = broadcast::channel(CHANNEL_CAPACITY);
         Self {
             channels: Arc::new(Mutex::new(HubChannels::new())),
             subscribers: HubUsers::new(),
             hub_sender,
             hub_receiver: Arc::new(Mutex::new(hub_receiver)),
-            hub_node,
+            hub_nodes: Vec::new(),
         }
+    }
+
+    pub fn add(&mut self, hub_node: Box<dyn NotificationHub>) {
+        self.hub_nodes.push(hub_node);
     }
 
     /// Request hub node to register to specific channel
@@ -69,7 +76,10 @@ impl<H: NotificationHub> HubManager<H> {
         &self,
         channel: &HubChannelName,
     ) -> Result<(), std::io::Error> {
-        self.hub_node.subscribe(channel.clone()).await
+        for node in &self.hub_nodes {
+            node.subscribe(channel.clone()).await?;
+        }
+        Ok(())
     }
 
     // Request hub node to unregister from speficic channel
@@ -77,13 +87,18 @@ impl<H: NotificationHub> HubManager<H> {
         &self,
         channel: &HubChannelName,
     ) -> Result<(), std::io::Error> {
-        self.hub_node.unsubscribe(channel.clone()).await
+        for node in &self.hub_nodes {
+            node.unsubscribe(channel.clone()).await?;
+        }
+        Ok(())
     }
 
     // Start hub.
     pub async fn start(&self) -> Result<(), std::io::Error> {
         let hub_sender = self.hub_sender.clone();
-        self.hub_node.start(hub_sender).await?;
+        for node in &self.hub_nodes {
+            node.start(hub_sender.clone()).await?;
+        }
         let hub_receiver = self.hub_receiver.clone();
         let channels = self.channels.clone();
 
@@ -102,8 +117,12 @@ impl<H: NotificationHub> HubManager<H> {
     }
 
     // List availabe topic channels in the Hub network
-    pub async fn list_channels(&self) -> Result<Vec<HubChannelName>, std::io::Error> {
-        self.hub_node.list_channels().await
+    pub async fn list_channels(&self) -> Result<HashSet<HubChannelName>, std::io::Error> {
+        let mut channels = HashSet::new();
+        for node in &self.hub_nodes {
+            channels.extend(node.list_channels().await?);
+        }
+        Ok(channels)
     }
 
     // Returns a receiver channel for a specific channel that the requestor can listen to
@@ -137,9 +156,16 @@ impl<H: NotificationHub> HubManager<H> {
         Ok(())
     }
 
-    // Send HubMessage to topic channel.
-    pub async fn send_to_channel(&self, message: HubMessage) -> Result<(), std::io::Error> {
-        self.hub_node.send(message).await
+    // Send HubMessage to topic channel
+    pub async fn send_to_channel(
+        &self,
+        message: HubMessage,
+        channel_idx: usize,
+    ) -> Result<(), std::io::Error> {
+        if let Some(node) = self.hub_nodes.get(channel_idx) {
+            node.send(message).await?;
+        }
+        Ok(())
     }
 }
 
@@ -157,38 +183,39 @@ mod tests {
 
         let client1 = WebSocketClient::new(URL).await.unwrap();
         let client2 = WebSocketClient::new(URL).await.unwrap();
-        let hub_ws1 = HubManager::new(client1);
-        let mut hub_ws2 = HubManager::new(client2);
-        hub_ws1.start().await.unwrap();
-        hub_ws2.start().await.unwrap();
+        let mut hub_ws = HubManager::new();
+        hub_ws.add(Box::new(client1));
+        hub_ws.add(Box::new(client2));
+
+        hub_ws.start().await.unwrap();
 
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
         // check channels are empty
         info!("###################  List channels");
-        let channels = hub_ws1.list_channels().await.unwrap();
+        let channels = hub_ws.list_channels().await.unwrap();
         assert!(channels.is_empty());
 
         // Send message to topic1. This will create a new channel
         info!("###################  Send first message to empty subscription list. This will create new channel");
         let ws_data = HubMessage::try_from_str("topic1", "test topic1").unwrap();
-        hub_ws1.send_to_channel(ws_data).await.unwrap();
+        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
 
-        let channels = hub_ws1.list_channels().await.unwrap();
+        let channels: Vec<_> = hub_ws.list_channels().await.unwrap().into_iter().collect();
         assert_eq!(channels, vec![HubChannelName::try_from("topic1").unwrap()]);
 
         // send message to topic1. Check that only topic1 is an active channel
         info!("###################  Send message to empty subscription list to existing channel");
         let ws_data = HubMessage::try_from_str("topic1", "test topic1").unwrap();
-        hub_ws1.send_to_channel(ws_data).await.unwrap();
+        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
 
-        let channels = hub_ws1.list_channels().await.unwrap();
+        let channels: Vec<_> = hub_ws.list_channels().await.unwrap().into_iter().collect();
         assert_eq!(channels, vec![HubChannelName::try_from("topic1").unwrap()]);
 
         // subscribe to channel topic 1 and send message
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         info!("##################  Subscribe to channel and send new message");
-        let receiver = hub_ws2
+        let receiver = hub_ws
             .register_to_channel(HubChannelName::try_from("topic1").unwrap())
             .await
             .unwrap();
@@ -196,7 +223,7 @@ mod tests {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         let ws_data = HubMessage::try_from_str("topic1", "new message test topic1").unwrap();
-        hub_ws1.send_to_channel(ws_data).await.unwrap();
+        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
 
         let receiver = Arc::new(receiver);
         let receiver_clone = Arc::clone(&receiver);
@@ -216,14 +243,14 @@ mod tests {
         // unsubscribe to channel topic 1 and send message
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         info!("##################  UnSubscribe from channel and send new message");
-        hub_ws2
+        hub_ws
             .unregister_from_channel(HubChannelName::try_from("topic1").unwrap(), user_id)
             .await
             .unwrap();
 
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         let ws_data = HubMessage::try_from_str("topic1", "new message test topic1").unwrap();
-        hub_ws1.send_to_channel(ws_data).await.unwrap();
+        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
 
         tokio::spawn(async move {
             let receiver = Arc::clone(&receiver);

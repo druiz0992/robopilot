@@ -1,4 +1,4 @@
-// File: /home/david/projects/rust/robopilot/frontend/src/app/(main)/page.tsx
+// File: /home/david/projects/rust/tmp/robopilot/frontend/src/app/(main)/page.tsx
 import * as entry from '../../../../src/app/(main)/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

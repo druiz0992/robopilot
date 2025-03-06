@@ -1,4 +1,5 @@
 use imu_common::types::Clock;
+use serde::Serialize;
 
 use super::channels::SerialChannelName;
 
@@ -16,7 +17,7 @@ impl SerialData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct SerialRawMessage(String);
 
 impl SerialRawMessage {
@@ -27,6 +28,10 @@ impl SerialRawMessage {
     #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
     }
 }
 
@@ -67,6 +72,14 @@ impl TryFrom<SerialRawMessage> for HubMessage {
             ));
         }
         Err("Couldn't convert serial raw message to serial message.".to_string())
+    }
+}
+
+impl From<HubMessage> for SerialRawMessage {
+    fn from(hub_msg: HubMessage) -> Self {
+        let channel = SerialChannelName::from(hub_msg.channel).tag();
+        let msg = hub_msg.data.as_str();
+        SerialRawMessage(format!("{} {}", channel, msg))
     }
 }
 

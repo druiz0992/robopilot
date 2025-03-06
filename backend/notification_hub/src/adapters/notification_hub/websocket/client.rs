@@ -87,47 +87,52 @@ impl NotificationHub for WebSocketClient {
     }
 
     // Connect to the WebSocket server, receive messages, and handle them
-    async fn start(&self, sender: broadcast::Sender<HubMessage>) -> Result<(), std::io::Error> {
-        let sender = Arc::new(Mutex::new(sender));
-        let sender_clone = sender.clone();
-        tokio::spawn({
-            let ws_read = Arc::clone(&self.ws_read);
-            async move {
-                let mut stream = ws_read.lock().await;
-                while let Some(message) = stream.next().await {
-                    match message {
-                        Ok(Message::Text(text)) => {
-                            // When a text message is received, handle it
-                            info!("Received message from server: {}", text);
-                            match WsMessage::try_from(text) {
-                                Ok(ws_message) => match ws_message {
-                                    WsMessage::Data(channel, data) => {
-                                        let hub_message = HubMessage::new(channel, data);
-                                        handlers::handle_incoming_data(
-                                            Arc::clone(&sender_clone),
-                                            hub_message,
-                                        )
-                                        .await;
+    async fn start(
+        &self,
+        sender: Option<broadcast::Sender<HubMessage>>,
+    ) -> Result<(), std::io::Error> {
+        if let Some(sender) = sender {
+            let sender = Arc::new(Mutex::new(sender));
+            let sender_clone = sender.clone();
+            tokio::spawn({
+                let ws_read = Arc::clone(&self.ws_read);
+                async move {
+                    let mut stream = ws_read.lock().await;
+                    while let Some(message) = stream.next().await {
+                        match message {
+                            Ok(Message::Text(text)) => {
+                                // When a text message is received, handle it
+                                info!("Received message from server: {}", text);
+                                match WsMessage::try_from(text) {
+                                    Ok(ws_message) => match ws_message {
+                                        WsMessage::Data(channel, data) => {
+                                            let hub_message = HubMessage::new(channel, data);
+                                            handlers::handle_incoming_data(
+                                                Arc::clone(&sender_clone),
+                                                hub_message,
+                                            )
+                                            .await;
+                                        }
+                                        _ => {
+                                            warn!("Unexpexted WsMessage received")
+                                        }
+                                    },
+                                    Err(e) => {
+                                        error!("Error in conversion: {}", e)
                                     }
-                                    _ => {
-                                        warn!("Unexpexted WsMessage received")
-                                    }
-                                },
-                                Err(e) => {
-                                    error!("Error in conversion: {}", e)
                                 }
                             }
-                        }
-                        Ok(m) => warn!("Unknown wsMessage type: {:?}", m),
-                        Err(e) => {
-                            error!("Error reading WebSocket message: {:?}", e);
-                            break;
+                            Ok(m) => warn!("Unknown wsMessage type: {:?}", m),
+                            Err(e) => {
+                                error!("Error reading WebSocket message: {:?}", e);
+                                break;
+                            }
                         }
                     }
+                    info!("WebSocket connection lost! Reconnecting...");
                 }
-                info!("WebSocket connection lost! Reconnecting...");
-            }
-        });
+            });
+        }
         Ok(())
     }
 

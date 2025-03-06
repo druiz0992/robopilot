@@ -67,10 +67,6 @@ impl HubManager {
         }
     }
 
-    pub fn get_sender(&self) -> broadcast::Sender<HubMessage> {
-        self.hub_sender.clone()
-    }
-
     pub fn add(&mut self, hub_node: Box<dyn NotificationHub>) {
         self.hub_nodes.push(hub_node);
     }
@@ -101,7 +97,7 @@ impl HubManager {
     pub async fn start(&self) -> Result<(), std::io::Error> {
         let hub_sender = self.hub_sender.clone();
         for node in &self.hub_nodes {
-            node.start(hub_sender.clone()).await?;
+            node.start(Some(hub_sender.clone())).await?;
         }
         let hub_receiver = self.hub_receiver.clone();
         let channels = self.channels.clone();

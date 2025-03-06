@@ -3,7 +3,7 @@ use log::{error, info, warn};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs::{File, OpenOptions};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, Mutex, RwLock};
 
 use notification_hub::adapters::serial::channels::{SerialChannelName, SerialPubChannels};

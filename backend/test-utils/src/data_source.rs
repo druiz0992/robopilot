@@ -31,7 +31,7 @@ impl<T: NotificationHub> DataSource<T> {
     pub async fn start(&mut self, delay_millis: u64) -> Result<(), String> {
         let _ = self.hub_client.start(None).await;
         tokio::time::sleep(Duration::from_millis(delay_millis)).await;
-        generate_data_process(self.sender.clone(), self.channel.clone(), self.n_dims).await;
+        generate_data_process(self.sender.clone(), self.channel.clone(), self.n_dims, 1000).await;
 
         while let Ok(message) = self.receiver.recv().await {
             info!("Received HubMessage: {:?}", message);
@@ -47,6 +47,7 @@ async fn generate_data_process(
     sender: broadcast::Sender<HubMessage>,
     channel: HubChannelName,
     n_dims: usize,
+    period_millis: u64,
 ) {
     let now = Clock::now().as_secs();
     let start = time::Instant::now();
@@ -67,7 +68,7 @@ async fn generate_data_process(
                 error!("Error sending HubMessage: {:?}", e);
             }
 
-            time::sleep(Duration::from_secs(2)).await;
+            time::sleep(Duration::from_millis(period_millis)).await;
         }
     });
 }

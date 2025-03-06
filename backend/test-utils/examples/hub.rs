@@ -1,4 +1,6 @@
+use imu_common::types::untimed::{Scalar, UnitQuaternion, XYZ};
 use notification_hub::models::hub::{HubChannelName, HubMessage};
+use serde_json;
 use tokio::time::Duration;
 
 use test_utils::hub;
@@ -33,14 +35,63 @@ async fn main() -> std::io::Result<()> {
     let hub_receivers = hub::register_to_channels(&mut hub, &channels).await;
 
     // process channels
-    hub::listen_to_channel("odometry", &hub_receivers, Box::new(default_processor)).await;
-    hub::listen_to_channel("orientation", &hub_receivers, Box::new(default_processor)).await;
-    hub::listen_to_channel("distance", &hub_receivers, Box::new(default_processor)).await;
-    hub::listen_to_channel("joystick", &hub_receivers, Box::new(default_processor)).await;
+    hub::listen_to_channel("odometry", &hub_receivers, Box::new(odometry_processor)).await;
+    hub::listen_to_channel(
+        "orientation",
+        &hub_receivers,
+        Box::new(orientation_processor),
+    )
+    .await;
+    hub::listen_to_channel("distance", &hub_receivers, Box::new(distance_processor)).await;
+    hub::listen_to_channel("joystick", &hub_receivers, Box::new(joystick_processor)).await;
 
     tokio::time::sleep(Duration::from_secs(50)).await;
 
     Ok(())
+}
+
+fn odometry_processor(channel: HubChannelName, message: HubMessage) {
+    let data = format!(r#""{}""#, message.data.as_str());
+    println!("ODOMETRY : {}", data);
+    if let Ok(sample) = serde_json::from_str::<XYZ>(data.as_str()) {
+        println!(
+            "Odometry processor received message {:?} from channel {:?}",
+            sample, channel
+        );
+    }
+}
+
+fn orientation_processor(channel: HubChannelName, message: HubMessage) {
+    let data = format!(r#""{}""#, message.data.as_str());
+    println!("ORIENTATION : {}", data);
+    if let Ok(sample) = serde_json::from_str::<UnitQuaternion>(data.as_str()) {
+        println!(
+            "Orientation processor received message {:?} from channel {:?}",
+            sample, channel
+        );
+    }
+}
+
+fn distance_processor(channel: HubChannelName, message: HubMessage) {
+    let data = message.data.as_str();
+    println!("DISTANCE : {}", data);
+    if let Ok(sample) = serde_json::from_str::<Scalar>(data) {
+        println!(
+            "Distance processor received message {:?} from channel {:?}",
+            sample, channel
+        );
+    }
+}
+
+fn joystick_processor(channel: HubChannelName, message: HubMessage) {
+    let data = format!(r#""{}""#, message.data.as_str());
+    println!("JOYSTICK : {}", data);
+    if let Ok(sample) = serde_json::from_str::<XYZ>(data.as_str()) {
+        println!(
+            "Joystick processor received message {:?} from channel {:?}",
+            sample, channel
+        );
+    }
 }
 
 fn default_processor(channel: HubChannelName, message: HubMessage) {

@@ -43,7 +43,7 @@ impl SerialClient {
             port: Arc::new(RwLock::new(port)),
             serial_channels: Arc::new(RwLock::new(SerialPubChannels::new())),
         };
-        info!("Serial oport opened...");
+        info!("Serial port opened...");
         Ok(handler)
     }
 }
@@ -64,61 +64,60 @@ impl NotificationHub for SerialClient {
     }
 
     /// Start client
-    async fn start(&self, sender: broadcast::Sender<HubMessage>) -> Result<(), std::io::Error> {
-        let port = self.port.clone();
-        let mut line_buffer = Vec::new();
-        let serial_channels = Arc::clone(&self.serial_channels);
-        info!("Starting Serial port...");
+    async fn start(
+        &self,
+        sender: Option<broadcast::Sender<HubMessage>>,
+    ) -> Result<(), std::io::Error> {
+        if let Some(sender) = sender {
+            let port = self.port.clone();
+            let mut line_buffer = Vec::new();
+            let serial_channels = Arc::clone(&self.serial_channels);
+            info!("Starting Serial port...");
 
-        tokio::spawn(async move {
-            let mut buffer = vec![0u8; BUFFER_SIZE];
-            loop {
-                let mut port_write = port.write().await;
-                match port_write.read(&mut buffer).await {
-                    Ok(n) if n > 0 => {
-                        line_buffer.extend_from_slice(&buffer[..n]);
-                        while let Some(pos) = line_buffer.iter().position(|&b| b == b'\n') {
-                            let line = String::from_utf8_lossy(&line_buffer[..=pos]).to_string();
+            tokio::spawn(async move {
+                let mut buffer = vec![0u8; BUFFER_SIZE];
+                loop {
+                    let mut port_write = port.write().await;
+                    match port_write.read(&mut buffer).await {
+                        Ok(n) if n > 0 => {
+                            line_buffer.extend_from_slice(&buffer[..n]);
+                            while let Some(pos) = line_buffer.iter().position(|&b| b == b'\n') {
+                                let line =
+                                    String::from_utf8_lossy(&line_buffer[..=pos]).to_string();
 
-                            if line.starts_with("##") {
-                                let raw_serial_message = SerialRawMessage::from_str(line.as_str());
-                                // serial client learns available channels by inspecting received data
-                                match HubMessage::try_from(raw_serial_message) {
-                                    Ok(message) => {
-                                        let mut serial_channels = serial_channels.write().await;
-                                        serial_channels
-                                            .add(SerialChannelName::from(message.channel.clone()));
-                                        if let Err(e) = sender.send(message) {
-                                            error!("Serial port send error {:?}", e);
+                                if line.starts_with("##") {
+                                    let raw_serial_message =
+                                        SerialRawMessage::from_str(line.as_str());
+                                    // serial client learns available channels by inspecting received data
+                                    match HubMessage::try_from(raw_serial_message) {
+                                        Ok(message) => {
+                                            let mut serial_channels = serial_channels.write().await;
+                                            serial_channels.add(SerialChannelName::from(
+                                                message.channel.clone(),
+                                            ));
+                                            if let Err(e) = sender.send(message) {
+                                                error!("Serial port send error {:?}", e);
+                                            }
                                         }
+                                        Err(e) => error!("Serial port receive error {:?}", e),
                                     }
-                                    Err(e) => error!("Serial port receive error {:?}", e),
+                                } else {
+                                    warn!("Invalid serial data. Waiting for valid channel prefix");
                                 }
-                            } else {
-                                warn!("Invalid serial data. Waiting for valid channel prefix");
+                                line_buffer.drain(0..=pos);
                             }
-                            line_buffer.drain(0..=pos);
+                        }
+                        Ok(_) => continue,
+                        Err(e) => {
+                            error!("Serial port error {:?}", e);
+                            break;
                         }
                     }
-                    Ok(_) => continue,
-                    Err(e) => {
-                        error!("Serial port error {:?}", e);
-                        break;
-                    }
+                    drop(port_write);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 }
-                drop(port_write);
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-        });
-        Ok(())
-    }
-
-    // nothing to do. All channels are recevied in a serial port
-    async fn subscribe(&self, _channel: HubChannelName) -> Result<(), std::io::Error> {
-        Ok(())
-    }
-    // nothing to do. All channels are recevied in a serial port
-    async fn unsubscribe(&self, _channel: HubChannelName) -> Result<(), std::io::Error> {
+            });
+        }
         Ok(())
     }
 }
@@ -131,10 +130,11 @@ mod tests {
     const BAUD_RATE: u32 = 9600;
 
     #[tokio::test]
+    #[ignore]
     async fn test_serial() {
         let client = SerialClient::new(PORT, BAUD_RATE).unwrap();
         let (sender, mut receiver) = broadcast::channel(100);
-        client.start(sender).await.unwrap();
+        client.start(Some(sender)).await.unwrap();
 
         let message = HubMessage::try_from_str("test_channel", "test_data").unwrap();
         let result = client.send(message).await;

@@ -1,6 +1,6 @@
-use robopilot::adapters::serial::SerialClient;
-use robopilot::adapters::websocket::WebSocketClient;
-use robopilot::services::hub::HubManager;
+use notification_hub::adapters::serial::SerialClient;
+use notification_hub::adapters::websocket::WebSocketClient;
+use notification_hub::services::hub::HubManager;
 
 mod adapters;
 mod models;

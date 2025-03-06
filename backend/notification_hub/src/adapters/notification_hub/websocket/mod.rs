@@ -5,3 +5,4 @@ pub(crate) mod server;
 
 pub use client::WebSocketClient;
 pub(crate) use message::WsMessage;
+pub use server::WebSocketServer;

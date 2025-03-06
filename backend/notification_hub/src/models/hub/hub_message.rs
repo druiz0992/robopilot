@@ -1,5 +1,4 @@
 use imu_common::types::Clock;
-use imu_common::types::Sample3D;
 use serde::{Deserialize, Serialize};
 
 use super::{HubChannelName, HubData};

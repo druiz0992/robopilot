@@ -2,6 +2,8 @@ use notification_hub::adapters::serial::SerialClient;
 use notification_hub::adapters::websocket::WebSocketClient;
 use notification_hub::services::hub::HubManager;
 
+use tokio::signal::ctrl_c;
+
 mod adapters;
 mod models;
 mod ports;
@@ -19,6 +21,10 @@ async fn main() -> std::io::Result<()> {
     }
 
     hub.start().await?;
+
+    println!("Press Ctrl+C to exit...");
+    ctrl_c().await?;
+    println!("Received Ctrl+C, shutting down.");
 
     Ok(())
 }

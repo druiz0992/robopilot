@@ -161,4 +161,86 @@ mod tests {
             panic!("Expected WsMessage::Data");
         }
     }
+    #[test]
+    fn test_subscribe_to_string() {
+        let channel_name = HubChannelName::try_from("test_channel").unwrap();
+        let message = WsMessage::subscribe_channel(channel_name.clone());
+        let result = message.to_string();
+        assert!(result.is_ok());
+        let json_str = result.unwrap();
+        let parsed_message: WsMessage = serde_json::from_str(&json_str).unwrap();
+        if let WsMessage::Subscribe(ch) = parsed_message {
+            assert_eq!(ch, channel_name);
+        } else {
+            panic!("Expected WsMessage::Subscribe");
+        }
+    }
+
+    #[test]
+    fn test_try_subscribe_from_string() {
+        let json_str = r#"{"Subscribe":"test_channel"}"#.to_string();
+        let result = WsMessage::try_from(json_str);
+        assert!(result.is_ok());
+        if let Ok(WsMessage::Subscribe(channel_name)) = result {
+            assert_eq!(channel_name.as_str(), "test_channel");
+        } else {
+            panic!("Expected WsMessage::Subscribe");
+        }
+    }
+
+    #[test]
+    fn test_data_to_string() {
+        let channel_name = HubChannelName::try_from("test_channel").unwrap();
+        let data = "test_data".parse::<HubData>().unwrap();
+        let message = WsMessage::Data(channel_name.clone(), data.clone());
+        let result = message.to_string();
+        assert!(result.is_ok());
+        let json_str = result.unwrap();
+        let parsed_message: WsMessage = serde_json::from_str(&json_str).unwrap();
+        if let WsMessage::Data(ch, d) = parsed_message {
+            assert_eq!(ch, channel_name);
+            assert_eq!(d, data);
+        } else {
+            panic!("Expected WsMessage::Data");
+        }
+    }
+
+    #[test]
+    fn test_try_data_from_string() {
+        let json_str = r#"{"Data":["test_channel","test_data1, test_data2"]}"#.to_string();
+        let result = WsMessage::try_from(json_str);
+        assert!(result.is_ok());
+        if let Ok(WsMessage::Data(channel_name, data)) = result {
+            assert_eq!(channel_name.as_str(), "test_channel");
+            assert_eq!(data.as_str(), "test_data1, test_data2");
+        } else {
+            panic!("Expected WsMessage::Data");
+        }
+    }
+
+    #[test]
+    fn test_try_from_ws_message() {
+        let channel_name = HubChannelName::try_from("test_channel").unwrap();
+        let data = "test_data".parse::<HubData>().unwrap();
+        let ws_message = WsMessage::Data(channel_name.clone(), data.clone());
+        let result = HubMessage::try_from(ws_message);
+        assert!(result.is_ok());
+        let hub_message = result.unwrap();
+        assert_eq!(hub_message.channel, channel_name);
+        assert_eq!(hub_message.data, data);
+    }
+
+    #[test]
+    fn test_from_hub_message() {
+        let channel_name = HubChannelName::try_from("test_channel").unwrap();
+        let data = "test_data".parse::<HubData>().unwrap();
+        let hub_message = HubMessage::new(channel_name.clone(), data.clone());
+        let ws_message: WsMessage = hub_message.into();
+        if let WsMessage::Data(ch, d) = ws_message {
+            assert_eq!(ch, channel_name);
+            assert_eq!(d, data);
+        } else {
+            panic!("Expected WsMessage::Data");
+        }
+    }
 }

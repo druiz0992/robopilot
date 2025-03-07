@@ -1,9 +1,8 @@
 use async_trait::async_trait;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::fs::{File, OpenOptions};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, Mutex, RwLock};
 
 use notification_hub::adapters::serial::channels::{SerialChannelName, SerialPubChannels};
@@ -38,11 +37,19 @@ impl PipeClient {
                     .await?,
             );
         }
-        tokio::time::sleep(Duration::from_millis(200)).await;
         let mut read_pipes = None;
         if let Some(read_paths) = read_path {
             let mut pipe_vec = Vec::new();
             for read_path in read_paths {
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(read_path)
+                    .await?;
+
+                file.flush().await?;
+
                 pipe_vec.push(Arc::new(Mutex::new(
                     OpenOptions::new().read(true).open(read_path).await?,
                 )));
@@ -92,7 +99,7 @@ impl PipeClient {
                                         let mut serial_channels = channels.write().await;
                                         serial_channels
                                             .add(SerialChannelName::from(message.channel.clone()));
-                                        info!(
+                                        debug!(
                                             "New message from channel {:?} received by Pipe client",
                                             message.channel.clone()
                                         );
@@ -109,13 +116,14 @@ impl PipeClient {
                                 );
                             }
                         }
-                        Ok(None) => continue,
+                        Ok(None) => {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await
+                        }
                         Err(e) => {
                             error!("Pipe error {:?}", e);
                             break;
                         }
                     }
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 }
             });
         }
@@ -139,7 +147,6 @@ impl NotificationHub for PipeClient {
         };
         let serial_message = SerialRawMessage::from(message);
         let raw_bytes = serial_message.to_bytes()?;
-        info!("Send serial message: {:?}", serial_message);
         write_pipe.write_all(&raw_bytes).await?;
         Ok(())
     }
@@ -177,6 +184,7 @@ impl NotificationHub for PipeClient {
 mod tests {
     use super::*;
     use notification_hub::models::hub::HubData;
+    use tokio::time::Duration;
 
     #[tokio::test]
     async fn test_pipe_client_new() {

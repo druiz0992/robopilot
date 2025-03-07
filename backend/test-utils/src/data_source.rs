@@ -28,13 +28,22 @@ impl<T: NotificationHub> DataSource<T> {
     }
 
     // Start generating HubMessages every second
-    pub async fn start(&mut self, delay_millis: u64) -> Result<(), String> {
+    pub async fn start(&mut self, delay_millis: u64, period_millis: u64) -> Result<(), String> {
         let _ = self.hub_client.start(None).await;
         tokio::time::sleep(Duration::from_millis(delay_millis)).await;
-        generate_data_process(self.sender.clone(), self.channel.clone(), self.n_dims, 1000).await;
+        generate_data_process(
+            self.sender.clone(),
+            self.channel.clone(),
+            self.n_dims,
+            period_millis,
+        )
+        .await;
 
         while let Ok(message) = self.receiver.recv().await {
-            info!("Received HubMessage: {:?}", message);
+            info!(
+                "New sample generated: {:?}. Sending through pipe...",
+                message
+            );
             if let Err(e) = self.hub_client.send(message).await {
                 error!("Error sending message to hub client : {:?}", e);
             }
@@ -61,8 +70,6 @@ async fn generate_data_process(
                 timestamp,
                 data,
             };
-            info!("New sample: {:?}", message);
-
             // Send the generated message to the sender
             if let Err(e) = sender.send(message) {
                 error!("Error sending HubMessage: {:?}", e);

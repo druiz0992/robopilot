@@ -5,72 +5,98 @@ import "@/styles/joystick.css"; // Adjust path if necessary
 import Joystick from "./Joystick";
 import { WS_URL } from "@/config";
 
-
-const socket = new WebSocket(WS_URL);
-
 const JoystickContainer = () => {
-  const [ws, setWs] = useState<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false); // Add state for connection status
+  const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [hasMoved, setHasMoved] = useState(false);
 
-  const prevJoystickLeftValue = useRef({ y: 0 });
-  const prevJoystickRightValue = useRef({ y: 0 });
+  const [joystickData, setJoystickData] = useState({ left: 0, right: 0 });
+  const prevJoystickData = useRef({ left: 0, right: 0 });
 
-  useEffect(() => {
+  const connectWebSocket = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return; // Prevent duplicate connections
+
     const socket = new WebSocket(WS_URL);
 
     socket.onopen = () => {
       console.log("WebSocket Connected");
-      setIsConnected(true); // Update connection status when connection opens
+      setIsConnected(true);
     };
 
     socket.onerror = (error) => {
       console.error("WebSocket Error:", error);
-      setIsConnected(false); // Update connection status on error
+      setIsConnected(false);
     };
 
     socket.onclose = () => {
       console.log("WebSocket Disconnected");
-      setIsConnected(false); // Update connection status when connection is closed
+      setIsConnected(false);
+      wsRef.current = null;
+
+      // Optional: Auto-reconnect after 2 seconds
+      setTimeout(connectWebSocket, 2000);
     };
 
-    setWs(socket);
+    wsRef.current = socket;
+  };
+
+  useEffect(() => {
+    connectWebSocket();
 
     return () => {
-      socket.close();
+      wsRef.current?.close();
     };
   }, []);
 
-  const sendJoystickData = (id: string, value: { y: number }, prevValue: { y: number }, ref: React.MutableRefObject<{ y: number }>) => {
-    if (value.y !== prevValue.y && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ id, value }));
-      ref.current = value; // Update the reference after sending data
-    }
+  const sendJoystickData = (data: { left: number; right: number }) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const combinedValues = `${data.left}, ${data.right}`;
+    const ws_message = JSON.stringify({ Data: ["joystick", combinedValues] });
+
+    console.log("Sending Joystick Data:", ws_message);
+    ws.send(ws_message);
   };
+
+  const updateJoystickData = (id: "left" | "right", value: { y: number }) => {
+    setJoystickData((prev) => {
+      const newData = { ...prev, [id]: value.y };
+
+      if (newData.left !== prevJoystickData.current.left || newData.right !== prevJoystickData.current.right) {
+        sendJoystickData(newData); // Immediately send changed values
+        prevJoystickData.current = newData;
+        setHasMoved(true);
+      }
+
+      return newData;
+    });
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+      if (hasMoved) {
+        sendJoystickData(prevJoystickData.current); // Send last known joystick data
+      } else {
+        sendJoystickData({ left: 0, right: 0 }); // Send 0,0 if no movement ever occurred
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [hasMoved]);
 
   return (
     <div>
       <div className="joystickContainer flex w-full justify-between items-center px-8">
-        {/* Joystick 1 on the left */}
         <div className="joystick-left">
-          <Joystick 
-            id="left" 
-            onMove={(value) => { 
-              sendJoystickData("left", value, prevJoystickLeftValue.current, prevJoystickLeftValue);
-            }} 
-          />
+          <Joystick id="left" onMove={(value) => updateJoystickData("left", value)} />
         </div>
-  
-        {/* Joystick 2 on the right */}
         <div className="joystick-right">
-          <Joystick 
-            id="right" 
-            onMove={(value) => { 
-              sendJoystickData("right", value, prevJoystickRightValue.current, prevJoystickRightValue);
-            }} 
-          />
+          <Joystick id="right" onMove={(value) => updateJoystickData("right", value)} />
         </div>
       </div>
-  
       <hr />
     </div>
   );

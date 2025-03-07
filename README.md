@@ -1,6 +1,6 @@
 # robopilot
 Demo project with a frontend to control a mobile car using two joysticks (one for the left motor and the other for the right motor).
-The backend receives the contol information and generates commands for the motors, connected via serial port.
+The backend receives the control information and generates commands for the motors, connected via serial port.
 
 To launch the example, start the the backend in one terminal.
 ```bash

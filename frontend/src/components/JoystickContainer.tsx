@@ -88,18 +88,19 @@ const JoystickContainer = () => {
   }, [hasMoved]);
 
   return (
-    <div>
-      <div className="joystickContainer flex w-full justify-between items-center px-8">
-        <div className="joystick-left">
-          <Joystick id="left" onMove={(value) => updateJoystickData("left", value)} />
-        </div>
-        <div className="joystick-right">
-          <Joystick id="right" onMove={(value) => updateJoystickData("right", value)} />
-        </div>
+    <div className="joystickContainer flex justify-between items-center w-full px-1">
+      {/* Left Joystick */}
+      <div className="joystick-left flex-1">
+        <Joystick id="left" onMove={(value) => updateJoystickData("left", value)} />
       </div>
-      <hr />
+
+      {/* Right Joystick */}
+      <div className="joystick-right flex-0">
+        <Joystick id="right" onMove={(value) => updateJoystickData("right", value)} />
+      </div>
     </div>
   );
+
 };
 
 export default JoystickContainer;

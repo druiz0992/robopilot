@@ -106,9 +106,9 @@ impl HubManager {
             let mut receiver = hub_receiver.lock().await;
             while let Ok(data) = receiver.recv().await {
                 // retrieve channel from data and broadcast to all registered clients
-                info!("Received data: {:?}", data);
                 let channels_lock = channels.lock().await;
                 if let Some(sender) = channels_lock.get_sender(&data.channel) {
+                    info!("Received data: {:?}", data);
                     let _ = sender.send(data).map_err(|e| error!("Error : {:?}", e));
                 }
             }

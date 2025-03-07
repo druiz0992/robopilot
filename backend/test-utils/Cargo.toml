@@ -17,8 +17,9 @@ serde.workspace = true
 serde_json.workspace = true
 futures-util.workspace = true
 futures-channel.workspace = true
-
 uuid.workspace = true
 imu_common.workspace = true
+
+futures = "0.3.31"
 
 notification_hub = {path = "../notification_hub"}

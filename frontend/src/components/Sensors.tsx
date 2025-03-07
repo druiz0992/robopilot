@@ -7,7 +7,7 @@ const sensors = [
     disabled: true,
   },
   {
-    name: 'Wheel odometry',
+    name: 'Odometry',
     icon: DeviceTiresIcon,
     disabled: true,
   },
@@ -133,15 +133,16 @@ export function Sensors() {
       <Container>
         <ul
           role="list"
-          className="mx-auto flex flex-nowrap justify-between items-center px-6 overflow-x-auto"
+          className="mx-auto flex flex-wrap justify-between items-center px-6 w-full gap-4"
+
         >
           {sensors.map((feature) => (
             <li
               key={feature.name}
-              className="rounded-2xl border border-gray-200 p-6"
+              className="flex flex-col items-center justify-between rounded-2xl border border-gray-20 p-4 flex-1 min-w-0 h-24"
             >
-              <feature.icon className="h-3 w-5" />
-              <h3 className="mt-6 font-semibold text-gray-900">
+              <feature.icon className="h-12 w-12" />
+              <h3 className="mt-1 font-semibold text-gray-900 text-center text-xs sm:text-sm md:text-base lg:text-lg">
                 {feature.name}
               </h3>
             </li>

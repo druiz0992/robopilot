@@ -23,3 +23,7 @@ imu_common.workspace = true
 futures = "0.3.31"
 
 notification_hub = {path = "../notification_hub"}
+
+[profile.release]
+debug = true
+

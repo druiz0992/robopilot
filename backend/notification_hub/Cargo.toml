@@ -20,3 +20,7 @@ futures-channel.workspace = true
 
 uuid.workspace = true
 imu_common.workspace = true
+
+[profile.release]
+debug = true
+

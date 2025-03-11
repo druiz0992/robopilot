@@ -52,7 +52,11 @@ impl SerialClient {
 impl NotificationHub for SerialClient {
     /// Send a message through channel
     async fn send(&self, data: HubMessage) -> Result<(), std::io::Error> {
-        let raw_bytes = data.to_bytes()?;
+        let serial_message = SerialRawMessage::from(data);
+        println!("Send message through serial port: {:?}", serial_message);
+        let mut raw_bytes = serial_message.to_bytes()?;
+        raw_bytes.push(b'\n');
+
         let mut port = self.port.write().await;
         tokio::io::AsyncWriteExt::write_all(&mut *port, &raw_bytes).await
     }
@@ -102,7 +106,7 @@ impl NotificationHub for SerialClient {
                                         Err(e) => error!("Serial port receive error {:?}", e),
                                     }
                                 } else {
-                                    warn!("Invalid serial data. Waiting for valid channel prefix");
+                                    warn!("Invalid serial data. Waiting for valid channel prefix : {:?}", line);
                                 }
                                 line_buffer.drain(0..=pos);
                             }

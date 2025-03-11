@@ -1,8 +1,11 @@
 use imu_common::types::untimed::{Scalar, UnitQuaternion, XYZ};
 use log::info;
 use notification_hub::models::hub::{HubChannelName, HubMessage};
+use notification_hub::services::hub::HubManager;
 use serde_json;
 use std::io::{Error, ErrorKind};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 
 use test_utils::hub;
@@ -42,23 +45,48 @@ async fn main() -> std::io::Result<()> {
     // register to channels
     let hub_receivers = hub::register_to_channels(&mut hub, &channels).await;
 
+    let hub = Arc::new(Mutex::new(hub));
+
     // process channels
-    hub::listen_to_channel("odometry", &hub_receivers, Box::new(odometry_processor)).await;
     hub::listen_to_channel(
-        "orientation",
+        hub.clone(),
+        channels[0].clone(),
         &hub_receivers,
-        Box::new(orientation_processor),
+        hub::create_processor(distance_processor),
     )
     .await;
-    hub::listen_to_channel("distance", &hub_receivers, Box::new(distance_processor)).await;
-    hub::listen_to_channel("joystick", &hub_receivers, Box::new(joystick_processor)).await;
+    hub::listen_to_channel(
+        hub.clone(),
+        channels[1].clone(),
+        &hub_receivers,
+        hub::create_processor(orientation_processor),
+    )
+    .await;
+    hub::listen_to_channel(
+        hub.clone(),
+        channels[2].clone(),
+        &hub_receivers,
+        hub::create_processor(odometry_processor),
+    )
+    .await;
+    hub::listen_to_channel(
+        hub.clone(),
+        channels[3].clone(),
+        &hub_receivers,
+        hub::create_processor(joystick_processor),
+    )
+    .await;
 
     tokio::time::sleep(Duration::from_secs(50)).await;
 
     Ok(())
 }
 
-fn odometry_processor(channel: HubChannelName, message: HubMessage) {
+async fn odometry_processor(
+    _hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
+    message: HubMessage,
+) {
     let data = format!(r#""{}""#, message.data.as_str());
     if let Ok(sample) = serde_json::from_str::<XYZ>(data.as_str()) {
         println!(
@@ -68,7 +96,11 @@ fn odometry_processor(channel: HubChannelName, message: HubMessage) {
     }
 }
 
-fn orientation_processor(channel: HubChannelName, message: HubMessage) {
+async fn orientation_processor(
+    _hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
+    message: HubMessage,
+) {
     let data = format!(r#""{}""#, message.data.as_str());
     if let Ok(sample) = serde_json::from_str::<UnitQuaternion>(data.as_str()) {
         println!(
@@ -78,7 +110,11 @@ fn orientation_processor(channel: HubChannelName, message: HubMessage) {
     }
 }
 
-fn distance_processor(channel: HubChannelName, message: HubMessage) {
+async fn distance_processor(
+    _hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
+    message: HubMessage,
+) {
     let data = message.data.as_str();
     if let Ok(sample) = serde_json::from_str::<Scalar>(data) {
         println!(
@@ -88,7 +124,11 @@ fn distance_processor(channel: HubChannelName, message: HubMessage) {
     }
 }
 
-fn joystick_processor(channel: HubChannelName, message: HubMessage) {
+async fn joystick_processor(
+    _hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
+    message: HubMessage,
+) {
     let data = format!(r#""{}""#, message.data.as_str());
     if let Ok(sample) = serde_json::from_str::<XYZ>(data.as_str()) {
         println!(

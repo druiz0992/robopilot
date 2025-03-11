@@ -156,14 +156,22 @@ impl HubManager {
         Ok(())
     }
 
-    // Send HubMessage to topic channel
-    pub async fn send_to_channel(
+    // Send HubMessage to client
+    pub async fn send_to_client(
         &self,
         message: HubMessage,
-        channel_idx: usize,
+        client_idx: usize,
     ) -> Result<(), std::io::Error> {
-        if let Some(node) = self.hub_nodes.get(channel_idx) {
+        if let Some(node) = self.hub_nodes.get(client_idx) {
             node.send(message).await?;
+        }
+        Ok(())
+    }
+
+    // Broadcast message
+    pub async fn broadcast(&self, message: HubMessage) -> Result<(), std::io::Error> {
+        for node in self.hub_nodes.iter() {
+            node.send(message.clone()).await?;
         }
         Ok(())
     }
@@ -199,7 +207,7 @@ mod tests {
         // Send message to topic1. This will create a new channel
         info!("###################  Send first message to empty subscription list. This will create new channel");
         let ws_data = HubMessage::try_from_str("topic1", "test topic1").unwrap();
-        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
+        hub_ws.send_to_client(ws_data, 0).await.unwrap();
 
         let channels: Vec<_> = hub_ws.list_channels().await.unwrap().into_iter().collect();
         assert_eq!(channels, vec![HubChannelName::try_from("topic1").unwrap()]);
@@ -207,7 +215,7 @@ mod tests {
         // send message to topic1. Check that only topic1 is an active channel
         info!("###################  Send message to empty subscription list to existing channel");
         let ws_data = HubMessage::try_from_str("topic1", "test topic1").unwrap();
-        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
+        hub_ws.send_to_client(ws_data, 0).await.unwrap();
 
         let channels: Vec<_> = hub_ws.list_channels().await.unwrap().into_iter().collect();
         assert_eq!(channels, vec![HubChannelName::try_from("topic1").unwrap()]);
@@ -223,7 +231,7 @@ mod tests {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         let ws_data = HubMessage::try_from_str("topic1", "new message test topic1").unwrap();
-        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
+        hub_ws.send_to_client(ws_data, 0).await.unwrap();
 
         let receiver = Arc::new(receiver);
         let receiver_clone = Arc::clone(&receiver);
@@ -250,7 +258,7 @@ mod tests {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         let ws_data = HubMessage::try_from_str("topic1", "new message test topic1").unwrap();
-        hub_ws.send_to_channel(ws_data, 0).await.unwrap();
+        hub_ws.send_to_client(ws_data, 0).await.unwrap();
 
         tokio::spawn(async move {
             let receiver = Arc::clone(&receiver);

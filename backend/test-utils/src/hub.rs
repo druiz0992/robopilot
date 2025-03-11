@@ -1,10 +1,14 @@
 use log::info;
 use notification_hub::adapters::serial::SerialClient;
 use notification_hub::adapters::websocket::WebSocketClient;
-use notification_hub::models::hub::{HubChannelName, HubMessage};
+use notification_hub::models::hub::{hub_message, HubChannelName, HubData, HubMessage};
 use notification_hub::services::hub::controller::HubReceiver;
 use notification_hub::services::hub::HubManager;
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 
 use crate::ClientPipeOptions;
@@ -12,20 +16,39 @@ use crate::DataSource;
 use crate::PipeClient;
 
 pub type RegisteredReceivers = HashMap<HubChannelName, HubReceiver>;
-pub type ProcessorFunction = Box<dyn Fn(HubChannelName, HubMessage) + Send + Sync>;
+pub type ProcessorFunction = Box<
+    dyn Fn(
+            Arc<Mutex<HubManager>>,
+            HubChannelName,
+            HubMessage,
+        ) -> Pin<Box<dyn Future<Output = ()> + Send>>
+        + Send
+        + Sync,
+>;
+
+pub fn create_processor<F, Fut>(processor: F) -> ProcessorFunction
+where
+    F: Fn(Arc<Mutex<HubManager>>, HubChannelName, HubMessage) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    Box::new(move |hub, channel, message| Box::pin(processor(hub, channel, message)))
+}
 
 pub async fn listen_to_channel(
-    channel_str: &str,
+    hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
     receivers: &RegisteredReceivers,
     processor: ProcessorFunction,
 ) {
-    let channel = HubChannelName::try_from(channel_str).unwrap();
     let hub_receiver = receivers.get(&channel).unwrap();
     let mut receiver = hub_receiver.receiver();
     tokio::spawn(async move {
+        let hub = Arc::clone(&hub);
+        let channel = channel.clone();
         loop {
+            let new_channel = channel.clone();
             if let Ok(data) = receiver.recv().await {
-                processor(channel.clone(), data);
+                processor(hub.clone(), new_channel.clone(), data).await;
             }
         }
     });

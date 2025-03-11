@@ -1,7 +1,12 @@
 use imu_common::types::untimed::XYZ;
-use notification_hub::models::hub::{HubChannelName, HubMessage};
+use log::info;
+use notification_hub::models::hub::{hub_message, HubChannelName, HubData, HubMessage};
+use notification_hub::services::hub::HubManager;
 use serde_json;
+use std::future::Future;
+use std::sync::Arc;
 use tokio::signal::ctrl_c;
+use tokio::sync::Mutex;
 
 use test_utils::hub;
 
@@ -12,14 +17,17 @@ use test_utils::hub;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
-    let serial_port_options = ("/dev/ttyACM0", 9600);
+    let serial_port_options = ("/dev/ttyACM0", 115200);
     let ws_url = "192.168.1.69:8080";
 
     let mut hub = hub::start_hub(None, Some(ws_url), Some(serial_port_options))
         .await
         .unwrap();
     let channels = [
-        HubChannelName::try_from("odometry").unwrap(),
+        //HubChannelName::try_from("lm393_right").unwrap(),
+        //HubChannelName::try_from("lm393_left").unwrap(),
+        //HubChannelName::try_from("hcsr04").unwrap(),
+        //HubChannelName::try_from("mp6050").unwrap(),
         HubChannelName::try_from("joystick").unwrap(),
     ];
 
@@ -29,9 +37,25 @@ async fn main() -> std::io::Result<()> {
     // register to channels
     let hub_receivers = hub::register_to_channels(&mut hub, &channels).await;
 
+    let update_channel = [HubChannelName::try_from("update").unwrap()];
+    let update_receiver = hub::register_to_channels(&mut hub, &update_channel).await;
+
+    let hub = Arc::new(Mutex::new(hub));
     // process channels
-    hub::listen_to_channel("odometry", &hub_receivers, Box::new(odometry_processor)).await;
-    hub::listen_to_channel("joystick", &hub_receivers, Box::new(joystick_processor)).await;
+    hub::listen_to_channel(
+        hub.clone(),
+        update_channel[0].clone(),
+        &update_receiver,
+        hub::create_processor(odometry_processor),
+    )
+    .await;
+    hub::listen_to_channel(
+        hub.clone(),
+        channels[0].clone(),
+        &hub_receivers,
+        hub::create_processor(joystick_processor),
+    )
+    .await;
 
     println!("Press Ctrl+C to exit...");
     ctrl_c().await?;
@@ -40,22 +64,38 @@ async fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn odometry_processor(channel: HubChannelName, message: HubMessage) {
+async fn odometry_processor(
+    _hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
+    message: HubMessage,
+) {
     let data = format!(r#""{}""#, message.data.as_str());
     if let Ok(sample) = serde_json::from_str::<XYZ>(data.as_str()) {
         println!(
-            "Odometry processor received message {:?} from channel {:?}",
+            "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE Odometry processor received message {:?} from channel {:?}",
             sample, channel
         );
     }
 }
 
-fn joystick_processor(channel: HubChannelName, message: HubMessage) {
+async fn joystick_processor(
+    hub: Arc<Mutex<HubManager>>,
+    channel: HubChannelName,
+    message: HubMessage,
+) {
     let data = format!(r#""{}""#, message.data.as_str());
     if let Ok(sample) = serde_json::from_str::<XYZ>(data.as_str()) {
-        println!(
-            "Joystick processor received message {:?} from channel {:?}",
-            sample, channel
+        let new_data = format!("{}, {}", sample.0.x, sample.0.y)
+            .parse::<HubData>()
+            .unwrap();
+        let new_channel = HubChannelName::try_from("ln298").unwrap();
+        let hub_message = HubMessage::new(new_channel, new_data);
+        info!(
+            "Joystick processor received message {:?} from channel {:?} and converted to {:?}",
+            sample, channel, hub_message
         );
+        let hub_lock = hub.lock().await;
+
+        let _ = hub_lock.send_to_client(hub_message, 1).await;
     }
 }

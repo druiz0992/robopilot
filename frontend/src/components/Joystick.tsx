@@ -74,7 +74,8 @@ class JoystickController {
     this.stick.style.transform = `translate3d(0px, ${yPosition}px, 0px)`;
 
     const distance2 = distance < DEADZONE ? 0 : MAX_DISTANCE / (MAX_DISTANCE - DEADZONE) * (distance - DEADZONE);
-    const yPercent = parseFloat((distance2 / MAX_DISTANCE * (yDiff < 0 ? -1 : 1)).toFixed(4));
+    const yPercent = parseFloat((distance2 / MAX_DISTANCE * (yDiff < 0 ? 1 : -1)).toFixed(4));
+
 
     this.value = { y: yPercent };
     this.onUpdate(this.value);

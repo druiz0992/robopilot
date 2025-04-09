@@ -9,7 +9,7 @@ use super::user::HubUsers;
 use crate::models::hub::{HubChannelName, HubMessage};
 use crate::ports::NotificationHub;
 
-const CHANNEL_CAPACITY: usize = 100;
+const CHANNEL_CAPACITY: usize = 10;
 
 /// Tuple cosisting of user id (Uuid) and channel receiver
 #[derive(Debug)]
@@ -27,9 +27,6 @@ impl HubReceiver {
         self.1.resubscribe()
     }
 }
-
-const SERIAL_IDX: usize = 0;
-const WS_IDX: usize = 1;
 
 /// `HubManager` controls communications through a NotificationHub network by
 /// maintaining the set of topic channels in the hub, the set of subscribers

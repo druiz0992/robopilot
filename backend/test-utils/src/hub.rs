@@ -46,9 +46,8 @@ pub async fn listen_to_channel(
         let hub = Arc::clone(&hub);
         let channel = channel.clone();
         loop {
-            let new_channel = channel.clone();
             if let Ok(data) = receiver.recv().await {
-                processor(hub.clone(), new_channel.clone(), data).await;
+                processor(hub.clone(), channel.clone(), data).await;
             }
         }
     });
@@ -72,15 +71,17 @@ pub async fn register_to_channels(
 pub async fn wait_for_channels(hub: &HubManager, channels: &[HubChannelName]) {
     loop {
         let available_channels: Vec<_> = hub.list_channels().await.unwrap().into_iter().collect();
-        info!(
-            "Available channels: {:?}, Requested channels: {:?}",
-            available_channels, channels
-        );
-        let all_available = channels
+        let missing: Vec<_> = channels
             .iter()
-            .all(|item| available_channels.contains(item));
+            .filter(|item| !available_channels.contains(item))
+            .cloned()
+            .collect();
+        info!(
+            "Available channels: {:?}, Requested channels: {:?}, Missing: {:?}",
+            available_channels, channels, missing
+        );
 
-        if all_available {
+        if missing.is_empty() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(900)).await;

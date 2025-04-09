@@ -118,7 +118,6 @@ impl NotificationHub for SerialClient {
                         }
                     }
                     drop(port_write);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 }
             });
         }

@@ -68,9 +68,9 @@ async fn handle_ws_data(
 ) {
     let mut channels = channel_map.lock().await;
     // Add new topic if necessary
-    channels.entry(channel_name.clone()).or_insert_with({
+    channels.entry(channel_name.clone()).or_insert_with(|| {
         info!("New channel created: {:?}", channel_name);
-        HashMap::new
+        HashMap::new()
     });
 
     // broadcast message to subscribers

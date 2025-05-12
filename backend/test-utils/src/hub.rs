@@ -1,4 +1,4 @@
-use log::info;
+use log::{error, info, warn};
 use notification_hub::adapters::serial::SerialClient;
 use notification_hub::adapters::websocket::WebSocketClient;
 use notification_hub::models::hub::{hub_message, HubChannelName, HubData, HubMessage};
@@ -46,10 +46,24 @@ pub async fn listen_to_channel(
         let hub = Arc::clone(&hub);
         let channel = channel.clone();
         loop {
-            if let Ok(data) = receiver.recv().await {
-                processor(hub.clone(), channel.clone(), data).await;
+            match receiver.recv().await {
+                Ok(data) => {
+                    processor(hub.clone(), channel.clone(), data).await;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    warn!(
+                        "Receiver lagged on channel {:?}, skipped {} messages",
+                        channel, skipped
+                    );
+                    continue;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    error!("Receiver closed for channel {:?}", channel);
+                    break;
+                }
             }
         }
+        error!("Listener loop exited for {:?}", channel);
     });
 }
 

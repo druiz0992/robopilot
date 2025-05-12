@@ -60,10 +60,12 @@ const JoystickContainer = () => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const combinedValues = `${data.left}, ${data.right}`;
+    const left = data.left.toFixed(2);
+    const right = data.right.toFixed(2);
+    const combinedValues = `${left}, ${right}`;
     const ws_message = JSON.stringify({ Data: ["joystick", combinedValues] });
 
-    console.log("Sending Joystick Data:", ws_message);
+    console.log("Sending Joystick Data:", "AAA", ws_message, combinedValues);
     ws.send(ws_message);
   }, []);
 

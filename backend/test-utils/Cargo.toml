@@ -21,6 +21,8 @@ uuid.workspace = true
 imu_common.workspace = true
 
 futures = "0.3.31"
+chrono = "0.4"
+
 
 notification_hub = {path = "../notification_hub"}
 
